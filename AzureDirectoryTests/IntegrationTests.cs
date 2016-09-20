@@ -6,6 +6,7 @@ using Lucene.Net.Store.Azure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.WindowsAzure.Storage;
 using System;
+using System.IO;
 using System.Text;
 
 namespace AzureDirectoryTests
@@ -55,6 +56,23 @@ namespace AzureDirectoryTests
             
         }
 
+        [TestMethod]
+        public void TestAzureLockTimeout()
+        {
+            // create a lock and don't release
+            // try to take another lock and it should fail
+            // try after 5 minutes and the lock should be obtained
+
+            var azLockFile = Path.GetTempFileName();
+            var azDir = new AzureDirectory(CloudStorageAccount.DevelopmentStorageAccount);
+            var azLock = new AzureLock(azLockFile, azDir);
+            Assert.IsTrue(azLock.Obtain());
+
+            var azLock2 = new AzureLock(azLockFile, azDir);
+            Assert.IsFalse(azLock2.Obtain());
+            System.Threading.Thread.Sleep(TimeSpan.FromMinutes(5));
+            Assert.IsTrue(azLock2.Obtain());
+        }
 
         static int SearchForPhrase(IndexSearcher searcher, string phrase)
         {
