@@ -15,8 +15,32 @@ namespace Lucene.Net.Store.Azure
         private CloudBlobClient _blobClient;
         private CloudBlobContainer _blobContainer;
         private Directory _cacheDirectory;
+        private Dictionary<string, AzureLock> _locks = new Dictionary<string, AzureLock>();
 
+        private void _initCacheDirectory(Directory cacheDirectory)
+        {
+            if (cacheDirectory != null)
+            {
+                // save it off
+                _cacheDirectory = cacheDirectory;
+            }
+            else
+            {
+                var cachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Azure Directory");
+                var azureDir = new DirectoryInfo(cachePath);
+                if (!azureDir.Exists)
+                    azureDir.Create();
 
+                var catalogPath = Path.Combine(cachePath, _containerName);
+                var catalogDir = new DirectoryInfo(catalogPath);
+                if (!catalogDir.Exists)
+                    catalogDir.Create();
+
+                _cacheDirectory = FSDirectory.Open(catalogPath);
+            }
+
+            CreateContainer();
+        }
 
 
         /// <summary>
@@ -88,31 +112,6 @@ namespace Lucene.Net.Store.Azure
             {
                 _cacheDirectory = value;
             }
-        }
-
-        private void _initCacheDirectory(Directory cacheDirectory)
-        {
-            if (cacheDirectory != null)
-            {
-                // save it off
-                _cacheDirectory = cacheDirectory;
-            }
-            else
-            {
-                var cachePath = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory), "AzureDirectory");
-                var azureDir = new DirectoryInfo(cachePath);
-                if (!azureDir.Exists)
-                    azureDir.Create();
-
-                var catalogPath = Path.Combine(cachePath, _containerName);
-                var catalogDir = new DirectoryInfo(catalogPath);
-                if (!catalogDir.Exists)
-                    catalogDir.Create();
-
-                _cacheDirectory = FSDirectory.Open(catalogPath);
-            }
-
-            CreateContainer();
         }
 
         public void CreateContainer()
@@ -188,7 +187,6 @@ namespace Lucene.Net.Store.Azure
             }
         }
 
-
         /// <summary>Returns the length of a file in the directory. </summary>
         public override long FileLength(String name)
         {
@@ -231,8 +229,6 @@ namespace Lucene.Net.Store.Azure
             }
         }
 
-        private Dictionary<string, AzureLock> _locks = new Dictionary<string, AzureLock>();
-
         /// <summary>Construct a {@link Lock}.</summary>
         /// <param name="name">the name of the lock file
         /// </param>
@@ -260,13 +256,6 @@ namespace Lucene.Net.Store.Azure
             _cacheDirectory.ClearLock(name);
         }
 
-        /// <summary>Closes the store. </summary>
-        protected override void Dispose(bool disposing)
-        {
-            _blobContainer = null;
-            _blobClient = null;
-        }
-
         public virtual bool ShouldCompressFile(string path)
         {
             if (!CompressBlobs)
@@ -291,6 +280,7 @@ namespace Lucene.Net.Store.Azure
                     return false;
             };
         }
+
         public StreamInput OpenCachedInputAsStream(string name)
         {
             return new StreamInput(CacheDirectory.OpenInput(name));
@@ -301,6 +291,11 @@ namespace Lucene.Net.Store.Azure
             return new StreamOutput(CacheDirectory.CreateOutput(name));
         }
 
+        /// <summary>Closes the store. </summary>
+        protected override void Dispose(bool disposing)
+        {
+            _blobContainer = null;
+            _blobClient = null;
+        }
     }
-
 }
