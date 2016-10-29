@@ -15,30 +15,18 @@ namespace Lucene.Net.Store.Azure
             Output = output;
         }
 
-        public override bool CanRead
-        {
-            get { return false; }
-        }
+        public override bool CanRead => false;
 
-        public override bool CanSeek
-        {
-            get { return true; }
-        }
+        public override bool CanSeek => true;
 
-        public override bool CanWrite
-        {
-            get { return true; }
-        }
+        public override bool CanWrite => true;
 
         public override void Flush()
         {
             Output.Flush();
         }
 
-        public override long Length
-        {
-            get { return Output.Length; }
-        }
+        public override long Length => Output.Length;
 
         public override long Position
         {

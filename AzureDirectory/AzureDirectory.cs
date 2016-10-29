@@ -10,12 +10,12 @@ namespace Lucene.Net.Store.Azure
 {
     public class AzureDirectory : Directory
     {
-        private string _containerName;
-        private string _rootFolder;
+        private readonly string _containerName;
+        private readonly string _rootFolder;
         private CloudBlobClient _blobClient;
         private CloudBlobContainer _blobContainer;
         private Directory _cacheDirectory;
-        private Dictionary<string, AzureLock> _locks = new Dictionary<string, AzureLock>();
+        private readonly Dictionary<string, AzureLock> _locks = new Dictionary<string, AzureLock>();
 
         private void _initCacheDirectory(Directory cacheDirectory)
         {
@@ -49,6 +49,7 @@ namespace Lucene.Net.Store.Azure
         /// <param name="storageAccount">storage account to use</param>
         /// <param name="containerName">name of container (folder in blob storage)</param>
         /// <param name="cacheDirectory">local Directory object to use for local cache</param>
+        /// <param name="compressBlobs"></param>
         /// <param name="rootFolder">path of the root folder inside the container</param>
         public AzureDirectory(
             CloudStorageAccount storageAccount,
@@ -80,13 +81,7 @@ namespace Lucene.Net.Store.Azure
             this.CompressBlobs = compressBlobs;
         }
 
-        public CloudBlobContainer BlobContainer
-        {
-            get
-            {
-                return _blobContainer;
-            }
-        }
+        public CloudBlobContainer BlobContainer => _blobContainer;
 
         public bool CompressBlobs
         {
@@ -174,7 +169,7 @@ namespace Lucene.Net.Store.Azure
         {
             var blob = _blobContainer.GetBlockBlobReference(_rootFolder + name);
             blob.DeleteIfExists();
-            Debug.WriteLine(String.Format("DELETE {0}/{1}", _blobContainer.Uri.ToString(), name));
+            Debug.WriteLine($"DELETE {_blobContainer.Uri.ToString()}/{name}");
 
             if (_cacheDirectory.FileExists(name + ".blob"))
             {
@@ -220,7 +215,7 @@ namespace Lucene.Net.Store.Azure
             try
             {
                 var blob = _blobContainer.GetBlockBlobReference(_rootFolder + name);
-                blob.FetchAttributes();
+                if(blob.Exists()) blob.FetchAttributes();
                 return new AzureIndexInput(this, blob);
             }
             catch (Exception err)

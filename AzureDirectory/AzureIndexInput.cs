@@ -15,19 +15,19 @@ namespace Lucene.Net.Store.Azure
         private AzureDirectory _azureDirectory;
         private CloudBlobContainer _blobContainer;
         private ICloudBlob _blob;
-        private string _name;
+        private readonly string _name;
 
         private IndexInput _indexInput;
-        private Mutex _fileMutex;
+        private readonly Mutex _fileMutex;
 
-        public Lucene.Net.Store.Directory CacheDirectory { get { return _azureDirectory.CacheDirectory; } }
+        public Lucene.Net.Store.Directory CacheDirectory => _azureDirectory.CacheDirectory;
 
         public AzureIndexInput(AzureDirectory azuredirectory, ICloudBlob blob)
         {
             _name = blob.Uri.Segments[blob.Uri.Segments.Length - 1];
 
 #if FULLDEBUG
-            Debug.WriteLine(String.Format("opening {0} ", _name));
+            Debug.WriteLine($"opening {_name} ");
 #endif
             _fileMutex = BlobMutexManager.GrabMutex(_name);
             _fileMutex.WaitOne();
@@ -53,26 +53,26 @@ namespace Lucene.Net.Store.Azure
                     if (hasMetadataValue) long.TryParse(blobLengthMetadata, out blobLength);
 
                     string blobLastModifiedMetadata;
-                    long longLastModified = 0;
-                    DateTime blobLastModifiedUTC = blob.Properties.LastModified.Value.UtcDateTime;
-                    if (blob.Metadata.TryGetValue("CachedLastModified", out blobLastModifiedMetadata)) {
+                    DateTime blobLastModifiedUtc = blob.Properties.LastModified?.UtcDateTime ?? DateTime.MinValue;
+                    if (blob.Metadata.TryGetValue("CachedLastModified", out blobLastModifiedMetadata))
+                    {
+                        long longLastModified = 0;
                         if (long.TryParse(blobLastModifiedMetadata, out longLastModified))
-                            blobLastModifiedUTC = new DateTime(longLastModified).ToUniversalTime();
+                            blobLastModifiedUtc = new DateTime(longLastModified).ToUniversalTime();
                     }
                     
-                    if (cachedLength != blobLength)
-                        fFileNeeded = true;
+                    if (cachedLength != blobLength) fFileNeeded = true;
                     else
                     {
 
                         // cachedLastModifiedUTC was not ouputting with a date (just time) and the time was always off
                         long unixDate = CacheDirectory.FileModified(fileName);
                         DateTime start = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-                        var cachedLastModifiedUTC = start.AddMilliseconds(unixDate).ToUniversalTime();
+                        var cachedLastModifiedUtc = start.AddMilliseconds(unixDate).ToUniversalTime();
                         
-                        if (cachedLastModifiedUTC != blobLastModifiedUTC)
+                        if (cachedLastModifiedUtc != blobLastModifiedUtc)
                         {
-                            var timeSpan = blobLastModifiedUTC.Subtract(cachedLastModifiedUTC);
+                            var timeSpan = blobLastModifiedUtc.Subtract(cachedLastModifiedUtc);
                             if (timeSpan.TotalSeconds > 1)
                                 fFileNeeded = true;
                             else
@@ -99,10 +99,10 @@ namespace Lucene.Net.Store.Azure
                         using (var fileStream = _azureDirectory.CreateCachedOutputAsStream(fileName))
                         {
                             // get the blob
-                            _blob.DownloadToStream(fileStream);
+                            if (_blob.Exists()) _blob.DownloadToStream(fileStream);
 
                             fileStream.Flush();
-                            Debug.WriteLine(string.Format("GET {0} RETREIVED {1} bytes", _name, fileStream.Length));
+                            Debug.WriteLine($"GET {_name} RETREIVED {fileStream.Length} bytes");
                         }
                     }
 
@@ -112,7 +112,7 @@ namespace Lucene.Net.Store.Azure
                 else
                 {
 #if FULLDEBUG
-                    Debug.WriteLine(String.Format("Using cached file for {0}", _name));
+                    Debug.WriteLine($"Using cached file for {_name}");
 #endif
 
                     // open the file in read only mode
@@ -132,9 +132,9 @@ namespace Lucene.Net.Store.Azure
             using (var deflatedStream = new MemoryStream())
             {
                 // get the deflated blob
-                _blob.DownloadToStream(deflatedStream);
+                if (_blob.Exists()) _blob.DownloadToStream(deflatedStream);
 
-                Debug.WriteLine(string.Format("GET {0} RETREIVED {1} bytes", _name, deflatedStream.Length));
+                Debug.WriteLine($"GET {_name} RETREIVED {deflatedStream.Length} bytes");
 
                 // seek back to begininng
                 deflatedStream.Seek(0, SeekOrigin.Begin);
@@ -163,7 +163,7 @@ namespace Lucene.Net.Store.Azure
             try
             {
 #if FULLDEBUG
-                Debug.WriteLine(String.Format("Creating clone for {0}", cloneInput._name));
+                Debug.WriteLine($"Creating clone for {cloneInput._name}");
 #endif
                 _azureDirectory = cloneInput._azureDirectory;
                 _blobContainer = cloneInput._blobContainer;
@@ -174,7 +174,7 @@ namespace Lucene.Net.Store.Azure
             {
                 // sometimes we get access denied on the 2nd stream...but not always. I haven't tracked it down yet
                 // but this covers our tail until I do
-                Debug.WriteLine(String.Format("Dagnabbit, falling back to memory clone for {0}", cloneInput._name));
+                Debug.WriteLine($"Dagnabbit, falling back to memory clone for {cloneInput._name}");
             }
             finally
             {
@@ -192,13 +192,7 @@ namespace Lucene.Net.Store.Azure
             _indexInput.ReadBytes(b, offset, len);
         }
 
-        public override long FilePointer
-        {
-            get
-            {
-                return _indexInput.FilePointer;
-            }
-        }
+        public override long FilePointer => _indexInput.FilePointer;
 
         public override void Seek(long pos)
         {
@@ -211,7 +205,7 @@ namespace Lucene.Net.Store.Azure
             try
             {
 #if FULLDEBUG
-                Debug.WriteLine(String.Format("CLOSED READSTREAM local {0}", _name));
+                Debug.WriteLine($"CLOSED READSTREAM local {_name}");
 #endif
                 _indexInput.Dispose();
                 _indexInput = null;
@@ -251,6 +245,5 @@ namespace Lucene.Net.Store.Azure
             Debug.Assert(clone != null);
             return clone;
         }
-
     }
 }
