@@ -6,3 +6,5 @@ csx/
 Profiles/
 *.ncrunch*
 packages/
+/.vs/AzureDirectory/v15/Server/sqlite3/db.lock
+/.vs/AzureDirectory/v15/Server/sqlite3/storage.ide
